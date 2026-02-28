@@ -23,7 +23,16 @@ async def procesar_imagen(file):
     datos = run_extraction(texto)  
     os.remove(ruta_temp)
 
+    sugerencia = {
+    "proveedor_cuit": datos.get("cuit", "no_detectado"),
+    "numero_factura": datos.get("numero_factura"),
+    "fecha": datos.get("fecha_emision"),
+    "importe": datos.get("totales", {}).get("total"),
+    "estado_inicial": "BORRADOR_AUTOGENERADO"
+}
+
     return {
-        "texto_detectado": texto,
-        "datos_extraidos": datos
-    }
+    "texto_detectado": texto,
+    "datos_extraidos": datos,
+    "sugerencia_expediente": sugerencia
+}
