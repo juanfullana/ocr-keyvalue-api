@@ -14,10 +14,24 @@ def aplicar_validaciones(data: dict, modelo: str) -> dict:
     }
 
     campos_ok = sum(validaciones.values())
-    confidence = round(campos_ok / len(validaciones), 2)
+    total_campos = len(validaciones)
+
+    confidence = round(campos_ok / total_campos, 2)
+
+    # Estado lógico de extracción
+    if confidence == 1:
+        estado_extraccion = "completo"
+    elif confidence >= 0.6:
+        estado_extraccion = "parcial"
+    else:
+        estado_extraccion = "incompleto"
+
+    requiere_revision = confidence < 0.8
 
     data["validaciones"] = validaciones
     data["confidence"] = confidence
+    data["estado_extraccion"] = estado_extraccion
+    data["requiere_revision"] = requiere_revision
     data["modelo"] = modelo
 
     return data
@@ -25,13 +39,13 @@ def aplicar_validaciones(data: dict, modelo: str) -> dict:
 
 def run_extraction(texto: str) -> dict:
 
-    # 1️⃣ Intentar extractores específicos
+    # Intentar extractores específicos
     for extractor in EXTRACTORS:
         if extractor.match(texto):
             data = extractor.extract(texto)
             return aplicar_validaciones(data, extractor.__class__.__name__)
 
-    # 2️⃣ Fallback genérico
+    # Fallback genérico
     generic = GenericFacturaExtractor()
     data = generic.extract(texto)
 
