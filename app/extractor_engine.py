@@ -28,11 +28,25 @@ def aplicar_validaciones(data: dict, modelo: str) -> dict:
 
     requiere_revision = confidence < 0.8
 
+    # Clasificación de negocio
+    if "Borcelle" in modelo:
+        tipo_documento = "factura"
+        plantilla_detectada = "proveedor_borcelle"
+    else:
+        tipo_documento = "factura"
+        plantilla_detectada = "generica"
+
+    data["clasificacion"] = {
+        "tipo_documento": tipo_documento,
+        "plantilla_detectada": plantilla_detectada,
+        "confidence_clasificacion": confidence
+    }
+
     data["validaciones"] = validaciones
     data["confidence"] = confidence
     data["estado_extraccion"] = estado_extraccion
     data["requiere_revision"] = requiere_revision
-    data["modelo"] = modelo
+    data["modelo_tecnico"] = modelo
 
     return data
 
