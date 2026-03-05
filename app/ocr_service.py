@@ -3,9 +3,11 @@ import shutil
 import os
 import time
 import numpy as np
+import pdfplumber
 from datetime import datetime
 from pdf2image import convert_from_path
 
+from app.document_classifier import clasificar_documento
 from app.extractor_engine import run_extraction
 
 
@@ -26,21 +28,40 @@ async def procesar_imagen(file):
 
         texto = ""
 
-        # 📄 Si es PDF → convertir a imagen primero
+        # 📄 Si es PDF
         if ruta_temp.lower().endswith(".pdf"):
 
-            imagenes = convert_from_path(ruta_temp)
+            texto_pdf = ""
 
-            for img in imagenes:
+            # Intentar leer texto directo del PDF (MUCHO más rápido)
+            try:
+                with pdfplumber.open(ruta_temp) as pdf:
+                    for pagina in pdf.pages:
+                        contenido = pagina.extract_text()
+                        if contenido:
+                            texto_pdf += contenido + "\n"
+            except:
+                texto_pdf = ""
 
-                resultados = reader.readtext(np.array(img))
+            # Si el PDF tiene texto digital → usarlo
+            if texto_pdf.strip():
+                texto = texto_pdf
 
-                resultados_ordenados = sorted(
-                    resultados,
-                    key=lambda r: (r[0][0][1], r[0][0][0])
-                )
+            # Si no tiene texto → aplicar OCR
+            else:
 
-                texto += "\n".join([r[1] for r in resultados_ordenados]) + "\n"
+                imagenes = convert_from_path(ruta_temp)
+
+                for img in imagenes:
+
+                    resultados = reader.readtext(np.array(img))
+
+                    resultados_ordenados = sorted(
+                        resultados,
+                        key=lambda r: (r[0][0][1], r[0][0][0])
+                    )
+
+                    texto += "\n".join([r[1] for r in resultados_ordenados]) + "\n"
 
         # 🖼 Si es imagen → OCR directo
         else:
@@ -53,6 +74,9 @@ async def procesar_imagen(file):
             )
 
             texto = "\n".join([r[1] for r in resultados_ordenados])
+
+        # 🧠 Clasificar tipo de documento
+        tipo_documento = clasificar_documento(texto)
 
         # Ejecutar extracción
         datos = run_extraction(texto)
@@ -72,6 +96,7 @@ async def procesar_imagen(file):
         return {
             "procesado_en": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "tiempo_procesamiento_ms": tiempo_ms,
+            "tipo_documento": tipo_documento,
             "texto_detectado": texto,
             "datos_extraidos": datos,
             "sugerencia_expediente": sugerencia
