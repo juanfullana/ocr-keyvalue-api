@@ -2,7 +2,9 @@ import easyocr
 import shutil
 import os
 import time
+import numpy as np
 from datetime import datetime
+from pdf2image import convert_from_path
 
 from app.extractor_engine import run_extraction
 
@@ -22,16 +24,35 @@ async def procesar_imagen(file):
         with open(ruta_temp, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Ejecutar OCR
-        resultados = reader.readtext(ruta_temp)
+        texto = ""
 
-        # Ordenar resultados por posición (fila, columna)
-        resultados_ordenados = sorted(
-            resultados,
-            key=lambda r: (r[0][0][1], r[0][0][0])
-        )
+        # 📄 Si es PDF → convertir a imagen primero
+        if ruta_temp.lower().endswith(".pdf"):
 
-        texto = "\n".join([r[1] for r in resultados_ordenados])
+            imagenes = convert_from_path(ruta_temp)
+
+            for img in imagenes:
+
+                resultados = reader.readtext(np.array(img))
+
+                resultados_ordenados = sorted(
+                    resultados,
+                    key=lambda r: (r[0][0][1], r[0][0][0])
+                )
+
+                texto += "\n".join([r[1] for r in resultados_ordenados]) + "\n"
+
+        # 🖼 Si es imagen → OCR directo
+        else:
+
+            resultados = reader.readtext(ruta_temp)
+
+            resultados_ordenados = sorted(
+                resultados,
+                key=lambda r: (r[0][0][1], r[0][0][0])
+            )
+
+            texto = "\n".join([r[1] for r in resultados_ordenados])
 
         # Ejecutar extracción
         datos = run_extraction(texto)
