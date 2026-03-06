@@ -1,8 +1,7 @@
-from app.extractors.factura_borcelle import FacturaBorcelleExtractor
 from app.extractors.generic_factura import GenericFacturaExtractor
 
 EXTRACTORS = [
-    FacturaBorcelleExtractor(),
+    GenericFacturaExtractor()
 ]
 
 def aplicar_validaciones(data: dict, modelo: str) -> dict:

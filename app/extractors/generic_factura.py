@@ -8,7 +8,7 @@ class GenericFacturaExtractor(BaseExtractor):
         """
         Convierte números europeos tipo 199,65 o 1.234,56 a float.
         """
-        valor = valor.replace(".", "").replace(",", ".")
+        valor = valor.replace(".", "").replace(",", ".").replace("€", "").strip()
         return float(valor)
 
     def match(self, texto: str) -> bool:
@@ -26,34 +26,69 @@ class GenericFacturaExtractor(BaseExtractor):
             "totales": {}
         }
 
+        texto_upper = texto.upper()
+
         # -------------------------
         # NÚMERO DE FACTURA
         # -------------------------
-        numero_match = re.search(
-            r"(N[°º\?]?\s*DE\s*FACTURA|FACTURA\s*N[°º]?)[^\n]*\n?\s*([A-Z0-9\-]+)",
+
+        # Caso 1: tabla tipo
+        # FACTURA PEDIDO FECHA
+        # 01234   01234  28/07/2030
+        tabla_match = re.search(
+            r"FACTURA\s+PEDIDO\s+FECHA.*?\n?(\d{3,})\s+\d{3,}\s+\d{2}/\d{2}/\d{4}",
             texto,
-            re.I
+            re.S
         )
 
-        if numero_match:
-            datos["numero_factura"] = numero_match.group(2).strip()
+        if tabla_match:
+            datos["numero_factura"] = tabla_match.group(1)
+
+        # Caso 2: FACTURA N° 12345
+        if not datos["numero_factura"]:
+
+            numero_match = re.search(
+                r"FACTURA\s*(?:N[°º]|NRO|NUMERO)?\s*[:\-]?\s*(\d{3,})",
+                texto,
+                re.I
+            )
+
+            if numero_match:
+                datos["numero_factura"] = numero_match.group(1)
+
+        # Caso 2: estructura tabla
+        # FACTURA PEDIDO FECHA
+        # 01234   01234  28/07/2030
+
+        if not datos["numero_factura"]:
+
+            tabla_match = re.search(
+                r"FACTURA\s+PEDIDO\s+FECHA.*?\n?(\d{3,})\s+\d{3,}\s+\d{2}/\d{2}/\d{4}",
+                texto_upper,
+                re.S
+            )
+
+            if tabla_match:
+                datos["numero_factura"] = tabla_match.group(1)
 
         # -------------------------
-        # FECHA (formato europeo)
+        # FECHA
         # -------------------------
+
         fecha_match = re.search(r"\b\d{2}[./]\d{2}[./]\d{4}\b", texto)
+
         if fecha_match:
             datos["fecha_emision"] = fecha_match.group()
 
         # -------------------------
         # TOTAL FINAL
-        # Busca todas las ocurrencias de TOTAL + número
-        # y se queda con la última
+        # Busca TOTAL + número o número seguido de €
         # -------------------------
+
         total_matches = re.findall(
-            r"TOTAL\s*[\n ]*(\d+[.,]\d+)",
-            texto,
-            re.I
+            r"TOTAL.*?(\d+[.,]?\d*)\s*€?",
+            texto_upper,
+            re.S
         )
 
         if total_matches:
@@ -63,13 +98,27 @@ class GenericFacturaExtractor(BaseExtractor):
             except:
                 pass
 
+        # fallback: detectar número seguido de €
+        if "total" not in datos["totales"]:
+
+            euro_match = re.findall(
+                r"(\d+[.,]?\d*)\s*€",
+                texto
+            )
+
+            if euro_match:
+                try:
+                    datos["totales"]["total"] = self.limpiar_numero(euro_match[-1])
+                except:
+                    pass
+
         # -------------------------
-        # SUBTOTAL (opcional)
+        # SUBTOTAL
         # -------------------------
+
         subtotal_match = re.search(
-            r"SUBTOTAL\s*[\n ]*(\d+[.,]\d+)",
-            texto,
-            re.I
+            r"SUBTOTAL\s*[:\-]?\s*(\d+[.,]\d+)",
+            texto_upper
         )
 
         if subtotal_match:
@@ -80,12 +129,12 @@ class GenericFacturaExtractor(BaseExtractor):
                 pass
 
         # -------------------------
-        # IVA (si aparece explícito)
+        # IVA
         # -------------------------
+
         iva_match = re.search(
-            r"IVA\s*.*?(\d+[.,]\d+)",
-            texto,
-            re.I
+            r"IVA.*?(\d+[.,]\d+)",
+            texto_upper
         )
 
         if iva_match:
